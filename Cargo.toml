@@ -1,0 +1,18 @@
+[package]
+name = "xn_5bicd"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+activitystreams = "0.6.2"
+anyhow = "1.0.66"
+env_logger = "0.9.3"
+json-ld = "0.9.1-beta"
+lazy_static = "1.4.0"
+log = "0.4.17"
+reqwest = "0.11.13"
+rocket = { version = ">=0.5.0-rc", features = ["json"] }
+webfinger = { version = "0.5.1", features = ["async"] }
+
