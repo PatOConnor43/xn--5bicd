@@ -16,7 +16,11 @@ use rocket::{
 async fn rocket() -> _ {
     // env_logger::init();
 
-    Rocket::build().mount("/", routes!(ping,))
+    let figment = rocket::Config::figment()
+        .merge(("port", 8000))
+        .merge(("address", "0.0.0.0"));
+
+    rocket::custom(figment).mount("/", routes![ping,])
 }
 
 #[get("/ping")]
@@ -26,9 +30,4 @@ fn ping() -> RawJson<&'static str> {
     "pong": true  
 }"#,
     )
-}
-
-#[get("/.well-known/webfinger?<resource>")]
-fn finger() -> RawJson<&'static str> {
-    RawJson(r#"{}"#)
 }
