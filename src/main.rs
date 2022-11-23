@@ -5,11 +5,15 @@ extern crate lazy_static;
 
 use ::webfinger::{Link, Webfinger};
 use rocket::{http::Status, response::content::RawJson, serde::json::Json};
+use serde::{Deserialize, Serialize};
 
 lazy_static! {
     static ref DOMAIN: &'static str = "xn--5bicd.fly.dev";
     static ref ACCOUNT_URL: &'static str = "acct:referee@xn--5bicd.fly.dev";
     static ref ACTOR_URL: &'static str = "https://xn--5bicd.fly.dev/@referee";
+    static ref AS_CONTEXT: &'static str = "https://www.w3.org/ns/activitystreams";
+    static ref SEC_CONTEXT: &'static str = "https://w3id.org/security/v1";
+    static ref PUBLIC_KEY: &'static str = "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnUphqhdcFnFAX7WRUo9b\nWJkKYhJCURMib82QGnQUCCy65h0+/FglkkQEiCGV0QfQq9dJgwhDxXGF4E/bq1qu\n1VmAIf6/7JGahPcwxyaqyDHfj4rCMkBW9QPTim8ptwGHuJh0t+95BmO/uKLwDMF5\n7fD6k1f36DYJHvrPtB2wEM+3oX8gywzKn+bYPC40iiA3Rtwy+BXL4vH5w31CZ/iX\nHUUtvIm0HlzzxfYI/ySIFjpesTZ5V5JBr9dqL6X5tRLtg3XUkvz2fCQnzF0TMr+O\ndA6XZPOg780gFlcUb5iWAGG5aXcjjtzjwEQFwgrx2lSQqpiAWowF+s1m9/j3BiW6\nOwIDAQAB\n-----END PUBLIC KEY-----\n";
 }
 
 #[launch]
@@ -19,7 +23,7 @@ async fn rocket() -> _ {
         .merge(("address", "0.0.0.0"))
         .merge(("log_level", rocket::config::LogLevel::Debug));
 
-    rocket::custom(figment).mount("/", routes![ping, webfinger])
+    rocket::custom(figment).mount("/", routes![ping, webfinger, referee])
 }
 
 #[get("/ping")]
@@ -53,4 +57,52 @@ pub fn webfinger(resource: String) -> Result<Json<Webfinger>, Status> {
         }));
     }
     Err(Status::NotFound)
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct KeyInformation {
+    id: String,
+    owner: String,
+    #[serde(rename = "publicKeyPem")]
+    public_key_pem: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Actor {
+    #[serde(rename = "@context")]
+    context: Vec<String>,
+    id: String,
+    #[serde(rename = "type")]
+    actor_type: String,
+    name: String,
+    summary: String,
+    #[serde(rename = "preferredUsername")]
+    preferred_username: String,
+    inbox: String,
+    outbox: String,
+    #[serde(rename = "publicKey")]
+    public_key: KeyInformation,
+}
+
+fn referee_profile() -> Actor {
+    Actor {
+        context: vec![AS_CONTEXT.to_string(), SEC_CONTEXT.to_string()],
+        id: ACTOR_URL.to_string(),
+        actor_type: "Service".to_string(),
+        name: "Referee".to_string(),
+        summary: "I'm a bot, hosting rock-paper-scissor games!".to_string(),
+        preferred_username: "referee".to_string(),
+        inbox: format!("{}/inbox", DOMAIN.to_string()),
+        outbox: format!("{}/outbox", DOMAIN.to_string()),
+        public_key: KeyInformation {
+            id: format!("{}#main-key", ACTOR_URL.to_string()),
+            owner: ACTOR_URL.to_string(),
+            public_key_pem: PUBLIC_KEY.to_string(),
+        },
+    }
+}
+
+#[get("/@referee")]
+pub fn referee() -> Result<Json<Actor>, Status> {
+    Ok(referee_profile().into())
 }
