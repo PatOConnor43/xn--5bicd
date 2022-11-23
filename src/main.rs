@@ -4,7 +4,11 @@ extern crate rocket;
 extern crate lazy_static;
 
 use ::webfinger::{Link, Webfinger};
-use rocket::{http::Status, response::content::RawJson, serde::json::Json};
+use rocket::{
+    http::{ContentType, Header, Status},
+    response::content::RawJson,
+    serde::json::Json,
+};
 use serde::{Deserialize, Serialize};
 
 lazy_static! {
@@ -13,7 +17,15 @@ lazy_static! {
     static ref ACTOR_URL: &'static str = "https://xn--5bicd.fly.dev/@referee";
     static ref AS_CONTEXT: &'static str = "https://www.w3.org/ns/activitystreams";
     static ref SEC_CONTEXT: &'static str = "https://w3id.org/security/v1";
-    static ref PUBLIC_KEY: &'static str = "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnUphqhdcFnFAX7WRUo9b\nWJkKYhJCURMib82QGnQUCCy65h0+/FglkkQEiCGV0QfQq9dJgwhDxXGF4E/bq1qu\n1VmAIf6/7JGahPcwxyaqyDHfj4rCMkBW9QPTim8ptwGHuJh0t+95BmO/uKLwDMF5\n7fD6k1f36DYJHvrPtB2wEM+3oX8gywzKn+bYPC40iiA3Rtwy+BXL4vH5w31CZ/iX\nHUUtvIm0HlzzxfYI/ySIFjpesTZ5V5JBr9dqL6X5tRLtg3XUkvz2fCQnzF0TMr+O\ndA6XZPOg780gFlcUb5iWAGG5aXcjjtzjwEQFwgrx2lSQqpiAWowF+s1m9/j3BiW6\nOwIDAQAB\n-----END PUBLIC KEY-----\n";
+    static ref PUBLIC_KEY: &'static str = r#"-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnUphqhdcFnFAX7WRUo9b
+WJkKYhJCURMib82QGnQUCCy65h0+/FglkkQEiCGV0QfQq9dJgwhDxXGF4E/bq1qu
+1VmAIf6/7JGahPcwxyaqyDHfj4rCMkBW9QPTim8ptwGHuJh0t+95BmO/uKLwDMF5
+7fD6k1f36DYJHvrPtB2wEM+3oX8gywzKn+bYPC40iiA3Rtwy+BXL4vH5w31CZ/iX
+HUUtvIm0HlzzxfYI/ySIFjpesTZ5V5JBr9dqL6X5tRLtg3XUkvz2fCQnzF0TMr+O
+dA6XZPOg780gFlcUb5iWAGG5aXcjjtzjwEQFwgrx2lSQqpiAWowF+s1m9/j3BiW6
+OwIDAQAB
+-----END PUBLIC KEY-----"#;
 }
 
 #[launch]
@@ -35,8 +47,16 @@ fn ping() -> RawJson<&'static str> {
     )
 }
 
+#[derive(Responder)]
+pub enum WebfingerApiResponse<T> {
+    #[response(status = 200, content_type = "application/jrd+json")]
+    Ok(T),
+    #[response(status = 404)]
+    NotFound(String),
+}
+
 #[get("/.well-known/webfinger?<resource>")]
-pub fn webfinger(resource: String) -> Result<Json<Webfinger>, Status> {
+pub fn webfinger(resource: String) -> WebfingerApiResponse<Json<Webfinger>> {
     info!("{:?}", resource);
     let valid_queries = vec![
         "referee".to_string(),
@@ -45,7 +65,7 @@ pub fn webfinger(resource: String) -> Result<Json<Webfinger>, Status> {
         format!("acct:referee@{}", DOMAIN.to_string()),
     ];
     if valid_queries.contains(&resource) {
-        return Ok(Json(Webfinger {
+        return WebfingerApiResponse::Ok(Json(Webfinger {
             subject: ACCOUNT_URL.to_string(),
             aliases: vec![],
             links: vec![Link {
@@ -56,7 +76,7 @@ pub fn webfinger(resource: String) -> Result<Json<Webfinger>, Status> {
             }],
         }));
     }
-    Err(Status::NotFound)
+    WebfingerApiResponse::NotFound("Not Found".to_string())
 }
 
 #[derive(Serialize, Deserialize)]
