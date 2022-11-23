@@ -72,7 +72,10 @@ pub fn webfinger(resource: String) -> WebfingerApiResponse<Json<Webfinger>> {
                 rel: "self".to_string(),
                 href: Some(ACTOR_URL.to_string()),
                 template: None,
-                mime_type: Some("application/ld+json".to_string()),
+                mime_type: Some(
+                    "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\""
+                        .to_string(),
+                ),
             }],
         }));
     }
