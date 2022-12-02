@@ -5,16 +5,12 @@ extern crate lazy_static;
 
 use ::webfinger::{Link, Webfinger};
 use rocket::{
-    http::{ContentType, Header, Status},
-    response::content::RawJson,
-    serde::json::Json,
+    fairing::AdHoc, figment::providers::Serialized, http::Status, response::content::RawJson,
+    serde::json::Json, State,
 };
 use serde::{Deserialize, Serialize};
 
 lazy_static! {
-    static ref DOMAIN: &'static str = "xn--5bicd.fly.dev";
-    static ref ACCOUNT_URL: &'static str = "acct:referee@xn--5bicd.fly.dev";
-    static ref ACTOR_URL: &'static str = "https://xn--5bicd.fly.dev/@referee";
     static ref AS_CONTEXT: &'static str = "https://www.w3.org/ns/activitystreams";
     static ref SEC_CONTEXT: &'static str = "https://w3id.org/security/v1";
     static ref PUBLIC_KEY: &'static str = r#"-----BEGIN PUBLIC KEY-----
@@ -28,14 +24,42 @@ OwIDAQAB
 -----END PUBLIC KEY-----"#;
 }
 
+fn subject_template(domain: &str) -> String {
+    format!("acct:referee@{}", domain)
+}
+fn actor_url_template(scheme: &str, domain: &str) -> String {
+    format!("{}{}/@referee", scheme, domain)
+}
+
+#[derive(Deserialize, Debug, Serialize)]
+#[serde(crate = "rocket::serde")]
+pub struct Config {
+    domain: String,
+    scheme: String,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Config {
+            domain: "xn--5bicd.fly.dev".to_string(),
+            scheme: "https://".to_string(),
+        }
+    }
+}
+
 #[launch]
 async fn rocket() -> _ {
-    let figment = rocket::Config::figment()
-        .merge(("port", 8000))
-        .merge(("address", "0.0.0.0"))
-        .merge(("log_level", rocket::config::LogLevel::Debug));
+    let figment = rocket::Config::figment().merge(Serialized::defaults(Config::default()));
 
-    rocket::custom(figment).mount("/", routes![ping, webfinger, referee])
+    let mut r = rocket::custom(figment)
+        .mount("/", routes![ping, webfinger, referee])
+        .attach(AdHoc::config::<Config>());
+
+    if r.figment().profile() == "debug" {
+        r = r.mount("/meta", routes![config]);
+    }
+
+    r
 }
 
 #[get("/ping")]
@@ -47,6 +71,11 @@ fn ping() -> RawJson<&'static str> {
     )
 }
 
+#[get("/config")]
+fn config(config: &State<Config>) -> Json<&Config> {
+    Json(config.inner())
+}
+
 #[derive(Responder)]
 pub enum WebfingerApiResponse<T> {
     #[response(status = 200, content_type = "application/jrd+json")]
@@ -56,21 +85,26 @@ pub enum WebfingerApiResponse<T> {
 }
 
 #[get("/.well-known/webfinger?<resource>")]
-pub fn webfinger(resource: String) -> WebfingerApiResponse<Json<Webfinger>> {
+pub fn webfinger(
+    config: &State<Config>,
+    resource: String,
+) -> WebfingerApiResponse<Json<Webfinger>> {
     info!("{:?}", resource);
+    let domain = &config.domain;
+    let scheme = &config.scheme;
     let valid_queries = vec![
         "referee".to_string(),
-        format!("referee@{}", DOMAIN.to_string()),
+        format!("referee@{}", domain.to_string()),
         "acct:referee".to_string(),
-        format!("acct:referee@{}", DOMAIN.to_string()),
+        format!("acct:referee@{}", domain.to_string()),
     ];
     if valid_queries.contains(&resource) {
         return WebfingerApiResponse::Ok(Json(Webfinger {
-            subject: ACCOUNT_URL.to_string(),
+            subject: subject_template(domain),
             aliases: vec![],
             links: vec![Link {
                 rel: "self".to_string(),
-                href: Some(ACTOR_URL.to_string()),
+                href: Some(actor_url_template(scheme, domain)),
                 template: None,
                 mime_type: Some(
                     "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\""
@@ -102,30 +136,30 @@ pub struct Actor {
     #[serde(rename = "preferredUsername")]
     preferred_username: String,
     inbox: String,
-    outbox: String,
     #[serde(rename = "publicKey")]
     public_key: KeyInformation,
 }
 
-fn referee_profile() -> Actor {
+fn referee_profile(scheme: &str, domain: &str) -> Actor {
     Actor {
         context: vec![AS_CONTEXT.to_string(), SEC_CONTEXT.to_string()],
-        id: ACTOR_URL.to_string(),
+        id: actor_url_template(scheme, domain),
         actor_type: "Service".to_string(),
         name: "Referee".to_string(),
         summary: "I'm a bot, hosting rock-paper-scissor games!".to_string(),
         preferred_username: "referee".to_string(),
-        inbox: format!("{}/inbox", DOMAIN.to_string()),
-        outbox: format!("{}/outbox", DOMAIN.to_string()),
+        inbox: format!("{}/inbox", domain),
         public_key: KeyInformation {
-            id: format!("{}#main-key", ACTOR_URL.to_string()),
-            owner: ACTOR_URL.to_string(),
+            id: format!("{}#public_key", actor_url_template(scheme, domain)),
+            owner: actor_url_template(scheme, domain),
             public_key_pem: PUBLIC_KEY.to_string(),
         },
     }
 }
 
 #[get("/@referee")]
-pub fn referee() -> Result<Json<Actor>, Status> {
-    Ok(referee_profile().into())
+pub fn referee(config: &State<Config>) -> Result<Json<Actor>, Status> {
+    let domain = &config.domain;
+    let scheme = &config.scheme;
+    Ok(referee_profile(scheme, domain).into())
 }

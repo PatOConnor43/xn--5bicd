@@ -1,0 +1,12 @@
+[default]
+address = "0.0.0.0"
+log_level = "debug"
+port = 8000
+
+[debug]
+domain = "localhost:8000"
+scheme = "http://"
+
+[release]
+domain = "xn--5bicd.fly.dev"
+scheme = "https://"
