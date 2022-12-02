@@ -14,7 +14,9 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 # Copy the rest
 COPY . .
 # Build (install) the actual binaries
-RUN cargo install --path .
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/src/app/target \
+    cargo install --path .
 
 # Runtime image
 FROM debian:bullseye-slim
@@ -27,5 +29,7 @@ WORKDIR /app
 
 # Get compiled binaries from builder's cargo install directory
 COPY --from=builder /usr/local/cargo/bin/xn_5bicd /app/xn_5bicd
+COPY --from=builder /usr/src/app/Rocket.toml /app/Rocket.toml
 
+#CMD ./xn_5bicd
 # No CMD or ENTRYPOINT, see fly.toml with `cmd` override.
