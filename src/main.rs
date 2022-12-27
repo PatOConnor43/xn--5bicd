@@ -1,7 +1,5 @@
 #[macro_use]
 extern crate rocket;
-#[macro_use]
-extern crate lazy_static;
 
 use ::webfinger::{Link, Webfinger};
 use rocket::{
@@ -10,10 +8,9 @@ use rocket::{
 };
 use serde::{Deserialize, Serialize};
 
-lazy_static! {
-    static ref AS_CONTEXT: &'static str = "https://www.w3.org/ns/activitystreams";
-    static ref SEC_CONTEXT: &'static str = "https://w3id.org/security/v1";
-    static ref PUBLIC_KEY: &'static str = r#"-----BEGIN PUBLIC KEY-----
+const AS_CONTEXT: &'static str = "https://www.w3.org/ns/activitystreams";
+const SEC_CONTEXT: &'static str = "https://w3id.org/security/v1";
+const PUBLIC_KEY: &'static str = r#"-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnUphqhdcFnFAX7WRUo9b
 WJkKYhJCURMib82QGnQUCCy65h0+/FglkkQEiCGV0QfQq9dJgwhDxXGF4E/bq1qu
 1VmAIf6/7JGahPcwxyaqyDHfj4rCMkBW9QPTim8ptwGHuJh0t+95BmO/uKLwDMF5
@@ -22,13 +19,12 @@ HUUtvIm0HlzzxfYI/ySIFjpesTZ5V5JBr9dqL6X5tRLtg3XUkvz2fCQnzF0TMr+O
 dA6XZPOg780gFlcUb5iWAGG5aXcjjtzjwEQFwgrx2lSQqpiAWowF+s1m9/j3BiW6
 OwIDAQAB
 -----END PUBLIC KEY-----"#;
-}
 
 fn subject_template(domain: &str) -> String {
-    format!("acct:referee@{}", domain)
+    format!("acct:referee@{domain}")
 }
 fn actor_url_template(scheme: &str, domain: &str) -> String {
-    format!("{}{}/@referee", scheme, domain)
+    format!("{scheme}{domain}/@referee")
 }
 
 #[derive(Deserialize, Debug, Serialize)]
@@ -94,9 +90,9 @@ pub fn webfinger(
     let scheme = &config.scheme;
     let valid_queries = vec![
         "referee".to_string(),
-        format!("referee@{}", domain.to_string()),
+        format!("referee@{}", domain),
         "acct:referee".to_string(),
-        format!("acct:referee@{}", domain.to_string()),
+        format!("acct:referee@{}", domain),
     ];
     if valid_queries.contains(&resource) {
         return WebfingerApiResponse::Ok(Json(Webfinger {
@@ -148,7 +144,7 @@ fn referee_profile(scheme: &str, domain: &str) -> Actor {
         name: "Referee".to_string(),
         summary: "I'm a bot, hosting rock-paper-scissor games!".to_string(),
         preferred_username: "referee".to_string(),
-        inbox: format!("{}/inbox", domain),
+        inbox: format!("{domain}/inbox"),
         public_key: KeyInformation {
             id: format!("{}#public_key", actor_url_template(scheme, domain)),
             owner: actor_url_template(scheme, domain),
